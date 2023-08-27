@@ -41,3 +41,21 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(10 minutes)
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: ./api/
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures: [arm64]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonDynamoDBFullAccess
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /data
+            Method: get
