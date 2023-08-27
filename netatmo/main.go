@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -53,7 +54,7 @@ type DynamoDBNetatmo struct {
 	TS            int     `json:"ts"`
 }
 
-func main() {
+func Fetch() {
 	respToken, err := http.PostForm(NETATMO_URL+"/oauth2/token", url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {os.Getenv("NETATMO_REFRESH_TOKEN")},
@@ -136,4 +137,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func main() {
+	lambda.Start(Fetch)
 }

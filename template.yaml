@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'Lambda Apps for fetching and exposing data from personal WeatherLink and Netatmo Stations.'
+
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  NetatmoFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: ./netatmo/
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures: [arm64]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonDynamoDBFullAccess
+  WeatherlinkFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: ./weatherlink/
+      Handler: bootstrap
+      Runtime: provided.al2
+      Architectures: [arm64]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonDynamoDBFullAccess

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -44,7 +45,7 @@ type DynamoDBWeatherLink struct {
 	TS          int     `json:"ts"`
 }
 
-func main() {
+func Fetch() {
 	resp, err := http.Get(os.Getenv("WEATHERLINK_URL"))
 	if err != nil {
 		log.Fatal(err)
@@ -109,4 +110,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func main() {
+	lambda.Start(Fetch)
 }
