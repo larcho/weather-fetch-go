@@ -7,16 +7,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/google/uuid"
 )
 
 const NETATMO_URL = "https://api.netatmo.com"
+const DYNAMODB_NETATMO_TOKEN_DS = "netatmo_token"
+const DYNAMODB_NETATMO_WEATHER_DS = "netatmo_weather"
 
 type NetatmoApiToken struct {
 	AccessToken  string  `json:"access_token"`
@@ -46,16 +49,59 @@ type NetatmoApiResponse struct {
 	Error *string     `json:"error"`
 }
 
-type DynamoDBNetatmo struct {
-	ID            string  `json:"id"`
+type DynamoDBNetatmoToken struct {
+	DS           string `json:"ds"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	Expires      int    `json:"expires"`
+	TS           int    `json:"ts"`
+}
+
+type DynamoDBNetatmoWeather struct {
+	DS            string  `json:"ds"`
 	TempInside    float64 `json:"temp_inside"`
 	TempInsideMin float64 `json:"temp_inside_min"`
 	TempInsideMax float64 `json:"temp_inside_max"`
 	TS            int     `json:"ts"`
 }
 
-func Fetch() {
-	respToken, err := http.PostForm(NETATMO_URL+"/oauth2/token", url.Values{
+var svc *dynamodb.DynamoDB
+
+func init() {
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	svc = dynamodb.New(sess)
+}
+
+func FetchAccessToken() string {
+	timestamp := time.Now().Unix()
+	params := &dynamodb.QueryInput{
+		TableName:              aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
+		KeyConditionExpression: aws.String("ds = :ds AND ts < :ts"),
+		FilterExpression:       aws.String("expires > :expires"),
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":ds":      {S: aws.String(DYNAMODB_NETATMO_TOKEN_DS)},
+			":ts":      {N: aws.String(strconv.FormatInt(timestamp, 10))},
+			":expires": {N: aws.String(strconv.FormatInt(timestamp, 10))},
+		},
+		ScanIndexForward: aws.Bool(false), // descending order
+		Limit:            aws.Int64(1),
+	}
+	result, err := svc.Query(params)
+	if err == nil && len(result.Items) != 0 {
+		var item DynamoDBNetatmoToken
+		err = dynamodbattribute.UnmarshalMap(result.Items[0], &item)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return item.AccessToken
+	}
+
+	resp, err := http.PostForm(NETATMO_URL+"/oauth2/token", url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {os.Getenv("NETATMO_REFRESH_TOKEN")},
 		"client_id":     {os.Getenv("NETATMO_CLIENT_ID")},
@@ -65,9 +111,9 @@ func Fetch() {
 		log.Fatal(err)
 	}
 
-	defer respToken.Body.Close()
+	defer resp.Body.Close()
 
-	body, err := io.ReadAll(respToken.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,8 +125,34 @@ func Fetch() {
 		log.Fatal(tokenData.Error)
 	}
 
+	item := DynamoDBNetatmoToken{
+		DS:           DYNAMODB_NETATMO_TOKEN_DS,
+		AccessToken:  tokenData.AccessToken,
+		RefreshToken: tokenData.RefreshToken,
+		Expires:      int(timestamp) + tokenData.ExpiresIn,
+		TS:           int(timestamp),
+	}
+	av, err := dynamodbattribute.MarshalMap(item)
+	if err != nil {
+		log.Fatal(err)
+	}
+	input := &dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
+	}
+	_, err = svc.PutItem(input)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return tokenData.AccessToken
+}
+
+func Fetch() {
+	token := FetchAccessToken()
+
 	req, err := http.NewRequest("GET", NETATMO_URL+"/api/getstationsdata?device_id="+os.Getenv("NETATMO_DEVICE_ID"), nil)
-	req.Header.Add("Authorization", "Bearer "+tokenData.AccessToken)
+	req.Header.Add("Authorization", "Bearer "+token)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -90,7 +162,7 @@ func Fetch() {
 
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,24 +174,9 @@ func Fetch() {
 		log.Fatal(apiResponse.Error)
 	}
 
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	svc := dynamodb.New(sess)
-
-	uuidV4, err := uuid.NewRandom()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	dashboardData := apiResponse.Body.Devices[0].DashboardData
-	item := DynamoDBNetatmo{
-		uuidV4.String(),
+	item := DynamoDBNetatmoWeather{
+		DYNAMODB_NETATMO_WEATHER_DS,
 		dashboardData.Temperature,
 		dashboardData.MinTemp,
 		dashboardData.MaxTemp,
@@ -131,7 +188,7 @@ func Fetch() {
 	}
 	input := &dynamodb.PutItemInput{
 		Item:      av,
-		TableName: aws.String("weather_netatmo"),
+		TableName: aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
 	}
 	_, err = svc.PutItem(input)
 	if err != nil {

@@ -12,8 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/google/uuid"
 )
+
+const DYNAMODB_WEATHERLINK_DS = "weatherlink_weather"
 
 type WeatherLinkCondition struct {
 	DataStructureType int      `json:"data_structure_type"`
@@ -37,7 +38,7 @@ type WeatherLinkApiResponse struct {
 }
 
 type DynamoDBWeatherLink struct {
-	ID          string  `json:"id"`
+	DS          string  `json:"ds"`
 	TempOutside float64 `json:"temp_outside"`
 	TempInside  float64 `json:"temp_inside"`
 	RainDaily   int     `json:"rain_daily"`
@@ -86,12 +87,8 @@ func Fetch() {
 
 	svc := dynamodb.New(sess)
 
-	uuidV4, err := uuid.NewRandom()
-	if err != nil {
-		log.Fatal(err)
-	}
 	item := DynamoDBWeatherLink{
-		uuidV4.String(),
+		DYNAMODB_WEATHERLINK_DS,
 		tempOutside,
 		tempInside,
 		rainDaily,
@@ -104,7 +101,7 @@ func Fetch() {
 	}
 	input := &dynamodb.PutItemInput{
 		Item:      av,
-		TableName: aws.String("weather_weatherlink"),
+		TableName: aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
 	}
 	_, err = svc.PutItem(input)
 	if err != nil {
