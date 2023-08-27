@@ -1,0 +1,8 @@
+export AWS_DEFAULT_REGION="us-east-1"
+
+export WEATHERLINK_URL=""
+
+export NETATMO_REFRESH_TOKEN=""
+export NETATMO_CLIENT_ID=""
+export NETATMO_CLIENT_SECRET=""
+export NETATMO_DEVICE_ID=""
