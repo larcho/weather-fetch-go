@@ -27,6 +27,16 @@ Parameters:
     Type: String
 
 Resources:
+  DataApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Domain:
+        DomainName:
+          Ref: DomainName
+        CertificateArn:
+          Ref: CertificateArn
+
   NetatmoFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -101,3 +111,5 @@ Resources:
           Properties:
             Path: /data
             Method: get
+            RestApiId:
+              Ref: DataApi
