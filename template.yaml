@@ -6,6 +6,26 @@ Globals:
   Function:
     Timeout: 10
 
+Parameters:
+  DomainName:
+    Type: String
+    Default: weather.larcho.com
+  CertificateArn:
+    Type: String
+  AwsDynamoDBTable:
+    Type: String
+    Default: weather-go
+  WeatherLinkURL:
+    Type: String
+  NetatmoRefreshToken:
+    Type: String
+  NetatmoClientID:
+    Type: String
+  NetatmoClientSecret:
+    Type: String
+  NetatmoDeviceID:
+    Type: String
+
 Resources:
   NetatmoFunction:
     Type: AWS::Serverless::Function
@@ -19,6 +39,18 @@ Resources:
       Policies:
         - AWSLambdaBasicExecutionRole
         - AmazonDynamoDBFullAccess
+      Environment:
+        Variables:
+          AWS_DYNAMODB_TABLE:
+            Ref: AwsDynamoDBTable
+          NETATMO_REFRESH_TOKEN:
+            Ref: NetatmoRefreshToken
+          NETATMO_CLIENT_ID:
+            Ref: NetatmoClientID
+          NETATMO_CLIENT_SECRET:
+            Ref: NetatmoClientSecret
+          NETATMO_DEVICE_ID:
+            Ref: NetatmoDeviceID
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -36,6 +68,12 @@ Resources:
       Policies:
         - AWSLambdaBasicExecutionRole
         - AmazonDynamoDBFullAccess
+      Environment:
+        Variables:
+          AWS_DYNAMODB_TABLE:
+            Ref: AwsDynamoDBTable
+          WEATHERLINK_URL:
+            Ref: WeatherLinkURL
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -53,6 +91,10 @@ Resources:
       Policies:
         - AWSLambdaBasicExecutionRole
         - AmazonDynamoDBFullAccess
+      Environment:
+        Variables:
+          AWS_DYNAMODB_TABLE:
+            Ref: AwsDynamoDBTable
       Events:
         Api:
           Type: Api

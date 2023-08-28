@@ -1,3 +1,4 @@
 env.sh
 bootstrap
 .aws-sam
+samconfig.toml
