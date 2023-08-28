@@ -1,4 +1,5 @@
 export AWS_DEFAULT_REGION="us-east-1"
+export AWS_DYNAMODB_TABLE="weather-go"
 
 export WEATHERLINK_URL=""
 

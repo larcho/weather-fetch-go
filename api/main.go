@@ -152,7 +152,7 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 			":ds": {S: aws.String(DYNAMODB_NETATMO_DS)},
 			":ts": {N: aws.String(strconv.FormatInt(timestamp, 10))},
 		},
-		ScanIndexForward: aws.Bool(true),
+		ScanIndexForward: aws.Bool(false),
 		Limit:            aws.Int64(1),
 	}
 	result, err = svc.Query(params)
