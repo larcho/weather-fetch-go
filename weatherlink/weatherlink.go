@@ -1,4 +1,4 @@
-package main
+package weatherlink
 
 import (
 	"encoding/json"

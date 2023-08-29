@@ -1,4 +1,4 @@
-package main
+package netatmo
 
 import (
 	"encoding/json"

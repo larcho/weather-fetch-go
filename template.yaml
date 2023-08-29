@@ -98,6 +98,7 @@ Resources:
       Handler: bootstrap
       Runtime: provided.al2
       Architectures: [arm64]
+      MemorySize: 1024
       Policies:
         - AWSLambdaBasicExecutionRole
         - AmazonDynamoDBFullAccess

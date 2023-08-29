@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -6,6 +6,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"weather-fetch-go/netatmo"
+	"weather-fetch-go/weatherlink"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -39,23 +42,6 @@ type ResponseBody struct {
 	TS        int                      `json:"timestamp"`
 }
 
-type DynamoDBWeatherLink struct {
-	DS          string  `json:"ds"`
-	TempOutside float64 `json:"temp_outside"`
-	TempInside  float64 `json:"temp_inside"`
-	RainDaily   int     `json:"rain_daily"`
-	RainRate    int     `json:"rain_rate"`
-	TS          int     `json:"ts"`
-}
-
-type DynamoDBNetatmoWeather struct {
-	DS            string  `json:"ds"`
-	TempInside    float64 `json:"temp_inside"`
-	TempInsideMin float64 `json:"temp_inside_min"`
-	TempInsideMax float64 `json:"temp_inside_max"`
-	TS            int     `json:"ts"`
-}
-
 var svc *dynamodb.DynamoDB
 
 func init() {
@@ -69,6 +55,7 @@ func init() {
 }
 
 func ApiResponse() (events.APIGatewayProxyResponse, error) {
+
 	responseBody := ResponseBody{
 		TS: int(time.Now().Unix()),
 	}
@@ -82,6 +69,7 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 	timestamp := startOfDay.Unix()
 
 	// WeatherLink Data
+	codeStartTime := time.Now()
 	params := &dynamodb.QueryInput{
 		TableName:              aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
 		KeyConditionExpression: aws.String("ds = :ds AND ts >= :ts"),
@@ -92,6 +80,9 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 		ScanIndexForward: aws.Bool(true),
 	}
 	result, err := svc.Query(params)
+	executionTime := time.Since(codeStartTime)
+	log.Printf("Execution for fetching Weatherlink data from DyanmoDB took: %d milliseconds.", executionTime.Milliseconds())
+
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
@@ -104,7 +95,7 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 	kdkMax := -100.0
 
 	for index, resultItem := range result.Items {
-		var item DynamoDBWeatherLink
+		var item weatherlink.DynamoDBWeatherLink
 		err = dynamodbattribute.UnmarshalMap(resultItem, &item)
 		if err != nil {
 			log.Fatal(err)
@@ -145,6 +136,8 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 	// Netatmo Data
 	timestamp = time.Now().Unix()
 
+	codeStartTime = time.Now()
+
 	params = &dynamodb.QueryInput{
 		TableName:              aws.String(os.Getenv("AWS_DYNAMODB_TABLE")),
 		KeyConditionExpression: aws.String("ds = :ds AND ts < :ts"),
@@ -156,15 +149,17 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 		Limit:            aws.Int64(1),
 	}
 	result, err = svc.Query(params)
+	executionTime = time.Since(codeStartTime)
+	log.Printf("Execution for fetching Netatmo data took: %d milliseconds.", executionTime.Milliseconds())
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
 
 	if len(result.Items) != 0 {
-		var item DynamoDBNetatmoWeather
+		var item netatmo.DynamoDBNetatmoWeather
 		err = dynamodbattribute.UnmarshalMap(result.Items[0], &item)
 		if err != nil {
-			log.Fatal(err)
+			return events.APIGatewayProxyResponse{}, err
 		}
 		responseBody.Bedroom = &ResponseTemperatureItem{
 			Temp:    item.TempInside,
@@ -189,5 +184,5 @@ func ApiResponse() (events.APIGatewayProxyResponse, error) {
 }
 
 func main() {
-    lambda.Start(ApiResponse)
+	lambda.Start(ApiResponse)
 }
