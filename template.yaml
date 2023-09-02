@@ -9,7 +9,6 @@ Globals:
 Parameters:
   DomainName:
     Type: String
-    Default: weather.larcho.com
   CertificateArn:
     Type: String
   AwsDynamoDBTable:
